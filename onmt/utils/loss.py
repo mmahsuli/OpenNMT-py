@@ -52,7 +52,7 @@ def build_loss_compute(model, tgt_vocab, opt, train=True):
             criterion, loss_gen, tgt_vocab, opt.copy_loss_by_seqlength
         )
     else:
-        compute = NMTLossCompute(criterion, loss_gen)
+        compute = NMTLossCompute(criterion, loss_gen, tgt_vocab)
     compute.to(device)
 
     return compute
@@ -77,10 +77,12 @@ class LossComputeBase(nn.Module):
         normalzation (str): normalize by "sents" or "tokens"
     """
 
-    def __init__(self, criterion, generator):
+    def __init__(self, criterion, generator, tgt_vocab):
         super(LossComputeBase, self).__init__()
         self.criterion = criterion
         self.generator = generator
+        self.tgt_vocab = tgt_vocab
+        self.tgt_vocab_size = len(tgt_vocab.itos)
 
     @property
     def padding_idx(self):
@@ -127,10 +129,13 @@ class LossComputeBase(nn.Module):
         Returns:
             :obj:`onmt.utils.Statistics`: loss statistics
         """
+
         range_ = (0, batch.tgt.size(0))
         shard_state = self._make_shard_state(batch, output, range_, attns)
+        # MMM
+        self.generator[-1].validation = True
         _, batch_stats = self._compute_loss(batch, **shard_state)
-
+        self.generator[-1].validation = False
         return batch_stats
 
     def sharded_compute_loss(self, batch, output, attns,
@@ -230,8 +235,8 @@ class NMTLossCompute(LossComputeBase):
     Standard NMT Loss Computation.
     """
 
-    def __init__(self, criterion, generator, normalization="sents"):
-        super(NMTLossCompute, self).__init__(criterion, generator)
+    def __init__(self, criterion, generator, tgt_vocab, normalization="sents"):
+        super(NMTLossCompute, self).__init__(criterion, generator, tgt_vocab)
 
     def _make_shard_state(self, batch, output, range_, attns=None):
         return {
@@ -241,6 +246,13 @@ class NMTLossCompute(LossComputeBase):
 
     def _compute_loss(self, batch, output, target):
         bottled_output = self._bottle(output)
+
+        # MMM
+        # use -1 to omit </s>
+        self.generator[-1].t_lens = (target != self.padding_idx).sum(dim=0) -1
+        self.generator[-1].eos_ind = self.tgt_vocab.stoi[inputters.EOS_WORD]
+        self.generator[-1].batch_max_len = target.size(0)
+        self.generator[-1].tgt_vocab_size = self.tgt_vocab_size
 
         scores = self.generator(bottled_output)
         gtruth = target.view(-1)

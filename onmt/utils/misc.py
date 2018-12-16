@@ -53,3 +53,10 @@ def use_gpu(opt):
     """
     return (hasattr(opt, 'gpu_ranks') and len(opt.gpu_ranks) > 0) or \
         (hasattr(opt, 'gpu') and opt.gpu > -1)
+
+# MMM
+def use_length_model(opt):
+    """
+    Creates a boolean if length model used
+    """
+    return (hasattr(opt, 'length_model') and len(opt.length_model) > 0)

@@ -21,9 +21,10 @@ from onmt.decoders.transformer import TransformerDecoder
 from onmt.decoders.cnn_decoder import CNNDecoder
 
 from onmt.modules import Embeddings, CopyGenerator
-from onmt.utils.misc import use_gpu
+from onmt.utils.misc import use_gpu, use_length_model
 from onmt.utils.logging import logger
 
+import numpy as np
 
 def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True):
     """
@@ -139,13 +140,13 @@ def load_test_model(opt, dummy_opt, model_path=None):
     for arg in dummy_opt:
         if arg not in model_opt:
             model_opt.__dict__[arg] = dummy_opt[arg]
-    model = build_base_model(model_opt, fields, use_gpu(opt), checkpoint)
+    model = build_base_model(model_opt, fields, use_gpu(opt), use_length_model(opt), checkpoint)
     model.eval()
     model.generator.eval()
     return fields, model, model_opt
 
 
-def build_base_model(model_opt, fields, gpu, checkpoint=None):
+def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
     """
     Args:
         model_opt: the option loaded from checkpoint.
@@ -224,10 +225,95 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None):
             gen_func = onmt.modules.sparse_activations.LogSparsemax(dim=-1)
         else:
             gen_func = nn.LogSoftmax(dim=-1)
-        generator = nn.Sequential(
-            nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
-            gen_func
-        )
+        # generator = nn.Sequential(
+        #     nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
+        #     gen_func
+        # )
+
+        # MMM
+        class tune_out_prob(nn.Module):
+
+            def __init__(self):
+                super(tune_out_prob, self).__init__()
+                self.t_lens = None
+                self.eos_ind = None
+                self.batch_max_len = None
+                self.word_index = None
+                self.tgt_vocab_size = None
+                self.validation = False
+
+            def forward(self, x):
+                y = x.clone()
+                #mask = np.ones(x.size())
+                # for i in range(self.t_lens.size(-1)):
+                #     y[i*self.batch_size + self.t_lens[i], self.eos_ind] = \
+                #         y[i * self.batch_size + self.t_lens[i], self.eos_ind].clone() + math.log(0.9)
+                if self.training or self.validation:  # training phase
+                    eos_list = [(i * self.batch_max_len + self.t_lens.data.cpu().numpy()[i]) for i in
+                                range(self.t_lens.size(-1))]
+                    other_list = list(set(list(range(x.size(0)))) - set(eos_list))
+                    y[other_list, self.eos_ind] = -100
+                    y[eos_list, self.eos_ind] = 0
+                    #mask[eos_list, self.eos_ind] = +2
+                    #mask[other_list, self.eos_ind] = -2
+                else:  # translation phase
+                    if len(x.size()) == 3:  # x of shape [ tgt_len, batch_size, vocab ] is a full sentence
+                        for i in range(len(self.t_lens)):
+                            other_list = list(set(list(range(x.size(0)))) - set(list([self.t_lens.data.cpu().numpy()[i]])))
+                            #mask[other_list, i, self.eos_ind] = -2
+                            y[other_list, i, self.eos_ind] = -100
+                            if self.t_lens[i] < x.size(0):
+                                #mask[self.t_lens[i], i, self.eos_ind] = +2
+                                y[self.t_lens[i], i, self.eos_ind] = 0
+                    else:  # x of shape [(batch_size x beam_size) , vocab ] is only for one step
+                        beam_size = x.size(0) // self.t_lens.numel()
+                        wi = self.word_index
+                        eos_list = (self.t_lens == wi + 2).unsqueeze(1).expand(self.t_lens.numel(), beam_size).flatten()
+                        y[eos_list, self.eos_ind] = 0
+                        #y[eos_list ^ 1, self.eos_ind] = -100
+                return y
+                #mask = torch.tensor(mask, dtype=x.dtype).to(device)
+                #x= x+mask
+                #return x
+
+                # y = x.clone()
+                # # 1. since y is the output of log_softmax, apply exponential
+                # # to convert it to probabilistic form
+                # y = torch.exp(y)
+                # # 2. tune probabilities
+                # eos_list = [(i * self.batch_max_len + self.t_lens.data.cpu().numpy()[i]) for i in
+                #             range(self.t_lens.size(-1))]
+                # other_list = list(set(list(range(y.size(0)))) - set(eos_list))
+                #
+                # z = y.clone()
+                # # 2.1. tune probabilities for eos positions
+                # z[eos_list, self.eos_ind] = 1
+                # z[eos_list, 0:self.eos_ind] = 0
+                # z[eos_list, self.eos_ind+1:-1] = 0
+                #
+                # # 2.2. tune probabilities for non-eos positions
+                # p_val = z[other_list, self.eos_ind] / (self.tgt_vocab_size - 1)
+                # z[other_list, self.eos_ind] = 0
+                # non_eos_inds = list(set(list(range(self.tgt_vocab_size))) - set([self.eos_ind]))
+                # for i in range(len(other_list)):
+                #     z[other_list[i], non_eos_inds] = y[other_list[i], non_eos_inds] + p_val[i]
+                #
+                # # 3. convert y back to log-probability form
+                # z = torch.log(z)
+                # return z
+
+        # MMM
+        if length_model:
+            generator = nn.Sequential(
+                nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
+                gen_func,
+                tune_out_prob()
+            )
+        else:
+            generator = nn.Sequential(
+                nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
+                gen_func
+            )
         if model_opt.share_decoder_embeddings:
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
@@ -282,6 +368,6 @@ def build_model(model_opt, opt, fields, checkpoint):
     """ Build the Model """
     logger.info('Building model...')
     model = build_base_model(model_opt, fields,
-                             use_gpu(opt), checkpoint)
+                             use_gpu(opt), use_length_model(opt), checkpoint)
     logger.info(model)
     return model

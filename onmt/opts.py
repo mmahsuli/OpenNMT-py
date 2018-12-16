@@ -21,6 +21,9 @@ def model_opts(parser):
 
     # Embedding Options
     group = parser.add_argument_group('Model-Embeddings')
+    # MMM
+    group.add('--length_model', '-length_model', default='',
+              help="""Weather to use length model or not""")
     group.add('--src_word_vec_size', '-src_word_vec_size',
               type=int, default=500,
               help='Word embedding size for src.')
@@ -485,6 +488,9 @@ def train_opts(parser):
 def translate_opts(parser):
     """ Translation / inference options """
     group = parser.add_argument_group('Model')
+    # MMM
+    group.add('--length_model', '-length_model', default='',
+              help="""Weather to use length model or not""")
     group.add('--model', '-model', dest='models', metavar='MODEL',
               nargs='+', type=str, default=[], required=True,
               help='Path to model .pt file(s). '

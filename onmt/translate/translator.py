@@ -73,6 +73,8 @@ class Translator(object):
         self.fields = fields
         self.gpu = opt.gpu
         self.cuda = opt.gpu > -1
+        # MMM
+        self.length_model = opt.length_model
 
         self.n_best = opt.n_best
         self.max_length = opt.max_length
@@ -331,6 +333,20 @@ class Translator(object):
             memory_bank,
             memory_lengths=memory_lengths,
             step=step)
+
+        # MMM
+        if len(self.length_model)>0:
+            # print('Using target length model.')
+            if self.length_model == 'oracle':
+                # print('Length model: oracle')
+                pad = self.fields["tgt"].vocab.stoi[inputters.PAD_WORD]
+                eos = self.fields["tgt"].vocab.stoi[inputters.EOS_WORD]
+                #sequence has <s> and </s>
+                self.model.generator[-1].t_lens = (batch.tgt != pad).sum(dim=0)
+                self.model.generator[-1].eos_ind = eos
+                self.model.generator[-1].batch_max_len = batch.tgt.size(0)
+            else:
+                print('Length model not implemented yet. Not using length model.')
 
         # Generator forward.
         if not self.copy_attn:
@@ -624,7 +640,8 @@ class Translator(object):
         for i in range(self.max_length):
             if all((b.done() for b in beam)):
                 break
-
+            # MMM
+            self.model.generator[-1].word_index = i
             # (a) Construct batch x beam_size nxt words.
             # Get all the pending current beam words and arrange for forward.
 
