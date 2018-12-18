@@ -2,6 +2,8 @@
 This file is for models creation, which consults options
 and creates each encoder and decoder accordingly.
 """
+import math
+from torch.distributions.normal import Normal
 import re
 import torch
 import torch.nn as nn
@@ -24,7 +26,6 @@ from onmt.modules import Embeddings, CopyGenerator
 from onmt.utils.misc import use_gpu, use_length_model
 from onmt.utils.logging import logger
 
-import numpy as np
 
 def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True):
     """
@@ -242,6 +243,9 @@ def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
                 self.tgt_vocab_size = None
                 self.validation = False
 
+            def length_model_loss(self, scale, value):
+                return -(value / scale) ** 2 - scale.log()
+
             def forward(self, x):
                 y = x.clone()
                 #mask = np.ones(x.size())
@@ -249,11 +253,18 @@ def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
                 #     y[i*self.batch_size + self.t_lens[i], self.eos_ind] = \
                 #         y[i * self.batch_size + self.t_lens[i], self.eos_ind].clone() + math.log(0.9)
                 if self.training or self.validation:  # training phase
-                    eos_list = [(i * self.batch_max_len + self.t_lens.data.cpu().numpy()[i]) for i in
-                                range(self.t_lens.size(-1))]
-                    other_list = list(set(list(range(x.size(0)))) - set(eos_list))
-                    y[other_list, self.eos_ind] = -100
-                    y[eos_list, self.eos_ind] = 0
+                    y = y.view(self.batch_max_len, -1, self.tgt_vocab_size)
+                    # eos_list = [(i * self.batch_max_len + self.t_lens.data.cpu().numpy()[i]) for i in
+                    #             range(self.t_lens.size(-1))]
+                    # other_list = list(set(list(range(x.size(0)))) - set(eos_list))
+                    # y[other_list, self.eos_ind] = -100
+                    # y[eos_list, self.eos_ind] = 0
+                    for wi in range(self.batch_max_len):
+                        delta_p = (self.t_lens - wi - 1)
+                        delta_p[delta_p < 0] = 0.02 * delta_p[delta_p < 0]
+                        scale = 1 + self.t_lens.float() / 8.0
+                        y[wi, :, self.eos_ind] += self.length_model_loss(scale, delta_p.float())
+                    y = y.view(-1, self.tgt_vocab_size)
                     #mask[eos_list, self.eos_ind] = +2
                     #mask[other_list, self.eos_ind] = -2
                 else:  # translation phase
@@ -268,8 +279,12 @@ def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
                     else:  # x of shape [(batch_size x beam_size) , vocab ] is only for one step
                         beam_size = x.size(0) // self.t_lens.numel()
                         wi = self.word_index
-                        eos_list = (self.t_lens == wi + 2).unsqueeze(1).expand(self.t_lens.numel(), beam_size).flatten()
-                        y[eos_list, self.eos_ind] = 0
+                        delta_p = (self.t_lens - wi - 2)
+                        delta_p[delta_p < 0] = 0.02 * delta_p[delta_p < 0]
+                        delta_p = delta_p.unsqueeze(1).expand(self.t_lens.numel(), beam_size).flatten()
+                        scale = 1 + self.t_lens.float() / 8.0
+                        scale = scale.unsqueeze(1).expand(self.t_lens.numel(), beam_size).flatten()
+                        y[:, self.eos_ind] += self.length_model_loss(scale, delta_p.float())
                         #y[eos_list ^ 1, self.eos_ind] = -100
                 return y
                 #mask = torch.tensor(mask, dtype=x.dtype).to(device)
@@ -314,6 +329,10 @@ def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
                 nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
                 gen_func
             )
+        # generator = nn.Sequential(
+        #     nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
+        #     gen_func
+        # )
         if model_opt.share_decoder_embeddings:
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
