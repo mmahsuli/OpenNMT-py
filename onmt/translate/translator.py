@@ -345,8 +345,6 @@ class Translator(object):
                 self.model.generator[-1].t_lens = (batch.tgt != pad).sum(dim=0)
                 self.model.generator[-1].eos_ind = eos
                 self.model.generator[-1].batch_max_len = batch.tgt.size(0)
-            else:
-                print('Length model not implemented yet. Not using length model.')
 
         # Generator forward.
         if not self.copy_attn:
@@ -641,7 +639,8 @@ class Translator(object):
             if all((b.done() for b in beam)):
                 break
             # MMM
-            self.model.generator[-1].word_index = i
+            if self.length_model == 'oracle':
+                self.model.generator[-1].word_index = i
             # (a) Construct batch x beam_size nxt words.
             # Get all the pending current beam words and arrange for forward.
 
@@ -670,10 +669,19 @@ class Translator(object):
             self.model.decoder.map_state(
                 lambda state, dim: state.index_select(dim, select_indices))
 
+        # MMM
+        oracle_rerank = False
+        if self.length_model == 'oracle_rerank':
+            oracle_rerank = True
+        padding_idx = self.fields['tgt'].vocab.stoi[inputters.PAD_WORD]
         # (4) Extract sentences from beam.
-        for b in beam:
+        for i, b in enumerate(beam):
             n_best = self.n_best
-            scores, ks = b.sort_finished(minimum=n_best)
+            # MMM
+            # use -2 to omit <s> and </s>
+            t_len = ((batch.tgt[:, i] != padding_idx).sum(dim=0) - 2)
+            t_len = float(t_len.to('cpu'))
+            scores, ks = b.sort_finished(oracle_rerank, padding_idx, t_len, minimum=n_best)
             hyps, attn = [], []
             for i, (times, k) in enumerate(ks[:n_best]):
                 hyp, att = b.get_hyp(times, k)

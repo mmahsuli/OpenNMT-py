@@ -23,7 +23,7 @@ from onmt.decoders.transformer import TransformerDecoder
 from onmt.decoders.cnn_decoder import CNNDecoder
 
 from onmt.modules import Embeddings, CopyGenerator
-from onmt.utils.misc import use_gpu, use_length_model
+from onmt.utils.misc import use_gpu
 from onmt.utils.logging import logger
 
 
@@ -141,7 +141,7 @@ def load_test_model(opt, dummy_opt, model_path=None):
     for arg in dummy_opt:
         if arg not in model_opt:
             model_opt.__dict__[arg] = dummy_opt[arg]
-    model = build_base_model(model_opt, fields, use_gpu(opt), use_length_model(opt), checkpoint)
+    model = build_base_model(model_opt, fields, use_gpu(opt), opt.length_model, checkpoint)
     model.eval()
     model.generator.eval()
     return fields, model, model_opt
@@ -318,7 +318,7 @@ def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
                 # return z
 
         # MMM
-        if length_model:
+        if length_model == 'oracle':
             generator = nn.Sequential(
                 nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
                 gen_func,
@@ -387,6 +387,6 @@ def build_model(model_opt, opt, fields, checkpoint):
     """ Build the Model """
     logger.info('Building model...')
     model = build_base_model(model_opt, fields,
-                             use_gpu(opt), use_length_model(opt), checkpoint)
+                             use_gpu(opt), opt.length_model, checkpoint)
     logger.info(model)
     return model

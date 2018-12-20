@@ -5,7 +5,7 @@ import onmt.model_builder
 import onmt.inputters
 import onmt.opts
 
-from onmt.utils.misc import use_gpu, use_length_model
+from onmt.utils.misc import use_gpu
 from onmt.utils.logging import init_logger, logger
 
 parser = argparse.ArgumentParser(description='translate.py')
@@ -60,7 +60,7 @@ def main():
             model_opt.__dict__[arg] = dummy_opt.__dict__[arg]
 
     model = onmt.model_builder.build_base_model(
-        model_opt, fields, use_gpu(opt), use_length_model(opt), checkpoint)
+        model_opt, fields, use_gpu(opt), opt.length_model, checkpoint)
     encoder = model.encoder
     decoder = model.decoder
 

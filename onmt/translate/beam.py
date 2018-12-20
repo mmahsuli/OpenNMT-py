@@ -1,7 +1,7 @@
 from __future__ import division
 import torch
 from onmt.translate import penalties
-
+import math
 
 class Beam(object):
     """
@@ -151,7 +151,7 @@ class Beam(object):
     def done(self):
         return self.eos_top and len(self.finished) >= self.n_best
 
-    def sort_finished(self, minimum=None):
+    def sort_finished(self, oracle_rerank, padding_idx, t_len, minimum=None):
         if minimum is not None:
             i = 0
             # Add from beam until we have minimum outputs.
@@ -161,6 +161,16 @@ class Beam(object):
                 self.finished.append((s, len(self.next_ys) - 1, i))
                 i += 1
 
+        # MMM
+        # rerank hypotheses using length model
+        if oracle_rerank:
+            for f in self.finished:
+                # use -1 to omit </s>
+                f_len = (torch.tensor(self.get_hyp(f[1], f[2])[0]) != padding_idx).sum(dim=0) -1
+                f_len = float(f_len)
+                f = list(f)
+                f[0] -= abs(f_len - t_len)/ t_len
+                f = tuple(f)
         self.finished.sort(key=lambda a: -a[0])
         scores = [sc for sc, _, _ in self.finished]
         ks = [(t, k) for _, t, k in self.finished]
