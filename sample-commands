@@ -1,4 +1,4 @@
-#1/usr/bin/env python3
+#!/usr/bin/env python3
 
 # preprocess
 python3 preprocess.py -train_src data/verbmobil-enfa/train.en -train_tgt data/verbmobil-enfa/train.fa -valid_src data/verbmobil-enfa/dev.en -valid_tgt data/verbmobil-enfa/dev.fa -save_data data/verbmobil-enfa/data -src_seq_length_trunc 0 -tgt_seq_length_trunc 0
@@ -14,3 +14,4 @@ python3 translate.py -model model/enfa-verbmobil-baseline_step_100000.pt -src da
 
 # translate using length mdoel for reranking the n-best list
 python3 translate.py -model model/enfa-verbmobil-baseline_step_100000.pt -src data/verbmobil-enfa/test.en -tgt data/verbmobil-enfa/ref0  -output pred.txt -replace_unk -verbose -gpu 0 -length_model oracle_rerank
+
