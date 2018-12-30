@@ -12,10 +12,10 @@ print('Splitting the dataset (single-ref)...')
 print('maximum target length in training dataset: '+str(max_train_tgt_len))
 f1 = open(base_loc+'train.en', 'r')
 f2 = open(base_loc+'train.fa', 'r')
-o1 = open(base_loc+'train-'+str(max_train_tgt_len)+'.en', 'a')
-o2 = open(base_loc+'train-'+str(max_train_tgt_len)+'.fa', 'a')
-o3 = open(base_loc+'test-'+str(max_train_tgt_len)+'.en', 'a')
-o4 = open(base_loc+'test-'+str(max_train_tgt_len)+'.fa', 'a')
+o1 = open(base_loc+'train-'+str(max_train_tgt_len)+'.en', 'w')
+o2 = open(base_loc+'train-'+str(max_train_tgt_len)+'.fa', 'w')
+o3 = open(base_loc+'test-'+str(max_train_tgt_len)+'.en', 'w')
+o4 = open(base_loc+'test-'+str(max_train_tgt_len)+'.fa', 'w')
 
 while True:
 	src_line = f1.readline() # src
