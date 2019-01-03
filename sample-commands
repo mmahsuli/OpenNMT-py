@@ -3,6 +3,14 @@
 # preprocess
 python3 preprocess.py -train_src data/verbmobil-enfa/train.en -train_tgt data/verbmobil-enfa/train.fa -valid_src data/verbmobil-enfa/dev.en -valid_tgt data/verbmobil-enfa/dev.fa -save_data data/verbmobil-enfa/data -src_seq_length_trunc 0 -tgt_seq_length_trunc 0
 
+####################
+# preprocess for shared vocab
+python3 preprocess.py -train_src data/verbmobil-enfa/train.en -train_tgt data/verbmobil-enfa/train.fa -valid_src data/verbmobil-enfa/dev.en -valid_tgt data/verbmobil-enfa/dev.fa -save_data data/verbmobil-enfa/data-shared-vocab -src_seq_length_trunc 0 -tgt_seq_length_trunc 0 -share_vocab
+# use pretrained embedding from GloVe
+python3 tools/embeddings_to_torch.py -emb_file_enc "data/verbmobil-enfa/bilingual-vectors.txt" -emb_file_dec "data/verbmobil-enfa/bilingual-vectors.txt"  -dict_file "data/verbmobil-enfa/data-shared-vocab.vocab.pt" -output_file "data/verbmobil-enfa/embeddings"
+#train using pretrained embeddings and fixing the embeddings	
+python3 train.py -data data/verbmobil-enfa/data-shared-vocab -save_model model/enfa-verbmobil-baseline-fixed-pretrained-embedding -world_size 1 -gpu_ranks 0 -batch_size 64 -max_generator_batches 120 -valid_steps 5000 -share_embeddings -pre_word_vecs_enc data/verbmobil-enfa/embeddings.enc.pt -pre_word_vecs_dec data/verbmobil-enfa/embeddings.dec.pt -fix_word_vecs_enc -fix_word_vecs_dec -share_embeddings
+####################
 # train using baseline model
 python3 train.py -data data/verbmobil-enfa/data -save_model model/enfa-verbmobil-baseline -world_size 1 -gpu_ranks 0 -batch_size 64 -max_generator_batches 120 -valid_steps 5000
 
