@@ -17,6 +17,7 @@ import onmt.inputters as inputters
 import onmt.opts as opts
 import onmt.decoders.ensemble
 
+from random import randint
 
 def build_translator(opt, report_score=True, logger=None, out_file=None):
     if out_file is None:
@@ -342,7 +343,10 @@ class Translator(object):
                 pad = self.fields["tgt"].vocab.stoi[inputters.PAD_WORD]
                 eos = self.fields["tgt"].vocab.stoi[inputters.EOS_WORD]
                 #sequence has <s> and </s>
-                self.model.generator[-1].t_lens = (batch.tgt != pad).sum(dim=0)
+                t_lens = (batch.tgt != pad).sum(dim=0)
+                # add noise to t_lens for experiments (just for test)
+                noisy_t_lens = torch.tensor([l+randint(-2,2) for l in t_lens])
+                self.model.generator[-1].t_lens = noisy_t_lens
                 self.model.generator[-1].eos_ind = eos
                 self.model.generator[-1].batch_max_len = batch.tgt.size(0)
 
