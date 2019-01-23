@@ -141,13 +141,13 @@ def load_test_model(opt, dummy_opt, model_path=None):
     for arg in dummy_opt:
         if arg not in model_opt:
             model_opt.__dict__[arg] = dummy_opt[arg]
-    model = build_base_model(model_opt, fields, use_gpu(opt), opt.length_model, checkpoint)
+    model = build_base_model(model_opt, fields, use_gpu(opt), opt.length_model, opt.length_penalty_a, opt.length_penalty_b, checkpoint)
     model.eval()
     model.generator.eval()
     return fields, model, model_opt
 
 
-def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
+def build_base_model(model_opt, fields, gpu, length_model, length_penalty_a, length_penalty_b,  checkpoint=None):
     """
     Args:
         model_opt: the option loaded from checkpoint.
@@ -243,8 +243,12 @@ def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
                 self.tgt_vocab_size = None
                 self.validation = False
 
-            def length_model_loss(self, scale, value):
-                return -(value / scale) ** 2 - scale.log()
+            def length_model_loss(self, scale, value, a, b):
+                #return -(value / scale) ** 2 - scale.log()
+                #return -((value / scale) **2)/2 - (2.5066*scale).log()
+                return -a*(value / scale) ** 2 + b#*abs(scale)
+                # return -((value / scale) ** 2)*scale + scale
+                #return -(value / scale)*4 + scale
 
             def forward(self, x):
                 y = x.clone()
@@ -260,31 +264,36 @@ def build_base_model(model_opt, fields, gpu, length_model, checkpoint=None):
                     # y[other_list, self.eos_ind] = -100
                     # y[eos_list, self.eos_ind] = 0
                     for wi in range(self.batch_max_len):
-                        delta_p = (self.t_lens - wi - 1)
-                        delta_p[delta_p < 0] = 0.02 * delta_p[delta_p < 0]
-                        scale = 1 + self.t_lens.float() / 8.0
-                        y[wi, :, self.eos_ind] += self.length_model_loss(scale, delta_p.float())
+                        delta_p = (self.t_lens - wi - 1).float()
+                        delta_p[delta_p < 0] = 0.005 * delta_p[delta_p < 0]
+                        scale = (self.t_lens.float()).sqrt()/2.0
+                        penalties = self.length_model_loss(scale, delta_p, length_penalty_a, length_penalty_b)
+                        #penalties[penalties > 0] = 0
+                        y[wi, :, self.eos_ind] += penalties
                     y = y.view(-1, self.tgt_vocab_size)
                     #mask[eos_list, self.eos_ind] = +2
                     #mask[other_list, self.eos_ind] = -2
                 else:  # translation phase
                     if len(x.size()) == 3:  # x of shape [ tgt_len, batch_size, vocab ] is a full sentence
-                        for i in range(len(self.t_lens)):
-                            other_list = list(set(list(range(x.size(0)))) - set(list([self.t_lens.data.cpu().numpy()[i]])))
-                            #mask[other_list, i, self.eos_ind] = -2
-                            y[other_list, i, self.eos_ind] = -100
-                            if self.t_lens[i] < x.size(0):
-                                #mask[self.t_lens[i], i, self.eos_ind] = +2
-                                y[self.t_lens[i], i, self.eos_ind] = 0
+                        # for i in range(len(self.t_lens)):
+                        #     other_list = list(set(list(range(x.size(0)))) - set(list([self.t_lens.data.cpu().numpy()[i]])))
+                        #     #mask[other_list, i, self.eos_ind] = -2
+                        #     y[other_list, i, self.eos_ind] = -100
+                        #     if self.t_lens[i] < x.size(0):
+                        #         #mask[self.t_lens[i], i, self.eos_ind] = +2
+                        #         y[self.t_lens[i], i, self.eos_ind] = 0
+                        pass
                     else:  # x of shape [(batch_size x beam_size) , vocab ] is only for one step
                         beam_size = x.size(0) // self.t_lens.numel()
                         wi = self.word_index
-                        delta_p = (self.t_lens - wi - 2)
-                        delta_p[delta_p < 0] = 0.02 * delta_p[delta_p < 0]
+                        delta_p = (self.t_lens - wi - 2).float()
+                        delta_p[delta_p < 0] = 0.005 * delta_p[delta_p < 0]
                         delta_p = delta_p.unsqueeze(1).expand(self.t_lens.numel(), beam_size).flatten()
-                        scale = 1 + self.t_lens.float() / 8.0
+                        scale = (self.t_lens.float()).sqrt()/2.0
                         scale = scale.unsqueeze(1).expand(self.t_lens.numel(), beam_size).flatten()
-                        y[:, self.eos_ind] += self.length_model_loss(scale, delta_p.float())
+                        penalties = self.length_model_loss(scale, delta_p, length_penalty_a, length_penalty_b)
+                        #penalties[penalties > 0] = 0
+                        y[:, self.eos_ind] += penalties
                         #y[eos_list ^ 1, self.eos_ind] = -100
                 return y
                 #mask = torch.tensor(mask, dtype=x.dtype).to(device)
@@ -387,6 +396,6 @@ def build_model(model_opt, opt, fields, checkpoint):
     """ Build the Model """
     logger.info('Building model...')
     model = build_base_model(model_opt, fields,
-                             use_gpu(opt), opt.length_model, checkpoint)
+                             use_gpu(opt), opt.length_model, opt.length_penalty_a, opt.length_penalty_b, checkpoint)
     logger.info(model)
     return model
