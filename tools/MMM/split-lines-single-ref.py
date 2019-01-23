@@ -7,7 +7,7 @@
 #	src and tgt lines of train with len(tgt)>max_train_tgt_len, as test data
 
 base_loc = ''#'../../data/verbmobil-enfa/'
-max_train_tgt_len = 10
+max_train_tgt_len = 30
 print('Splitting the dataset (single-ref)...')
 print('maximum target length in training dataset: '+str(max_train_tgt_len))
 f1 = open(base_loc+'train.en', 'r')
