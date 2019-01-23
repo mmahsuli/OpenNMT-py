@@ -21,14 +21,14 @@
 #########################################################################################
 
 model_dir='model'
-model_prefix='enfa-verbmobil-baseline-25'
+model_prefix='iwslt-baseline-40'
 openNMT_py_dir='../../'
-src='data/verbmobil-enfa/test-25.en'
-tgt='data/verbmobil-enfa/test-25.fa'
-multiref_tgt='data/verbmobil-enfa/test.fa'
+src='data/iwslt14.tokenized.de-en/test-40.de'
+tgt='data/iwslt14.tokenized.de-en/test-40.en'
+multiref_tgt='data/verbmobil-enfa/ref'
 
-file_suffix='-oracle'
-translation_extra_params='-length_model oracle'
+file_suffix='' #'-oracle'
+translation_extra_params='' #'-length_model oracle'
 
 exp_dir='experiments'
 test_single_ref=true
@@ -58,15 +58,17 @@ for model in $(ls $model_dir/${model_prefix}_step_*.pt | sort -n -t _ -k 3); do
         mkdir $exp_dir/$trans_dir
     fi
     output_suffix=$(echo $model | grep -o -P "(?<=${model_dir}/).*(?=.pt)")
-    python3 translate.py -src $src -tgt $tgt -replace_unk -verbose -gpu 0 -model $model -output ${exp_dir}/${trans_dir}/pred-${output_suffix}${file_suffix}.txt $translation_extra_params
+    python3 translate.py -src $src -tgt $tgt -replace_unk -verbose -gpu 0 -model $model -output ${exp_dir}/${trans_dir}/pred-${output_suffix}${file_suffix}.txt -max_length 200 $translation_extra_params
     #single-reference BLEU calculation
     if [ $test_single_ref = true ] ; then
-        echo $iter'\t' $(perl tools/multi-bleu.perl  $tgt < ${exp_dir}/${trans_dir}/pred-${output_suffix}${file_suffix}.txt | grep -o -P '(?<=BLEU = )\d{2}.\d{2}(?=, )') >> $exp_dir/${model_prefix}${file_suffix}-single-bleu-stats.txt
+        bleu_details=$(perl tools/multi-bleu.perl  $tgt < ${exp_dir}/${trans_dir}/pred-${output_suffix}${file_suffix}.txt)
+        echo $iter'\t'$(echo $bleu_details | grep -o -P '(?<=BLEU = )\d{2}.\d{2}(?=, )')'\t'$bleu_details >> $exp_dir/${model_prefix}${file_suffix}-single-bleu-stats.txt
     fi
 
     #multi-reference BLEU calculation
     if [ $test_multi_ref = true ] ; then
-        echo $iter'\t' $(perl tools/multi-bleu.perl  $multiref_tgt < ${exp_dir}/${trans_dir}/pred-${output_suffix}${file_suffix}.txt | grep -o -P '(?<=BLEU = )\d{2}.\d{2}(?=, )') >> $exp_dir/${model_prefix}${file_suffix}-multi-bleu-stats.txt
+        bleu_details=$(perl tools/multi-bleu.perl  $multiref_tgt < ${exp_dir}/${trans_dir}/pred-${output_suffix}${file_suffix}.txt)
+        echo $iter'\t'$(echo $bleu_details | grep -o -P '(?<=BLEU = )\d{2}.\d{2}(?=, )')'\t'$bleu_details >> $exp_dir/${model_prefix}${file_suffix}-multi-bleu-stats.txt
     fi
 done
 echo '==========================='
