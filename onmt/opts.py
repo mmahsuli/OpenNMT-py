@@ -24,6 +24,11 @@ def model_opts(parser):
     # MMM
     group.add('--length_model', '-length_model', default='',
               help="""Weather to use length model or not""")
+    group.add('--length_penalty_a', '-length_penalty_a', default=1.0,
+              type=float, help="""'a' parameter for length penalty function""")
+    group.add('--length_penalty_b', '-length_penalty_b', default=1.0,
+              type=float, help="""'b' parameter for length penalty function""")
+
     group.add('--src_word_vec_size', '-src_word_vec_size',
               type=int, default=500,
               help='Word embedding size for src.')
@@ -491,6 +496,11 @@ def translate_opts(parser):
     # MMM
     group.add('--length_model', '-length_model', default='',
               help="""Weather to use length model or not""")
+    group.add('--length_penalty_a', '-length_penalty_a', default=1.0,
+              type=float, help="""'a' parameter for length penalty function""")
+    group.add('--length_penalty_b', '-length_penalty_b', default=1.0,
+              type=float, help="""'b' parameter for length penalty function""")
+
     group.add('--model', '-model', dest='models', metavar='MODEL',
               nargs='+', type=str, default=[], required=True,
               help='Path to model .pt file(s). '
