@@ -76,6 +76,8 @@ class Translator(object):
         self.cuda = opt.gpu > -1
         # MMM
         self.length_model = opt.length_model
+        self.length_penalty_a = opt.length_penalty_a
+        self.length_penalty_b = opt.length_penalty_b
 
         self.n_best = opt.n_best
         self.max_length = opt.max_length
@@ -344,9 +346,12 @@ class Translator(object):
                 eos = self.fields["tgt"].vocab.stoi[inputters.EOS_WORD]
                 #sequence has <s> and </s>
                 t_lens = (batch.tgt != pad).sum(dim=0)
-                # add noise to t_lens for experiments (just for test)
-                noisy_t_lens = torch.tensor([l+randint(-2,2) for l in t_lens])
-                self.model.generator[-1].t_lens = noisy_t_lens
+                # # add noise to t_lens for experiments (just for test)
+                # noisy_t_lens = torch.tensor([l+randint(-2,2) for l in t_lens])
+                # if self.cuda:
+                #     noisy_t_lens = noisy_t_lens.to('cuda')
+                # self.model.generator[-1].t_lens = noisy_t_lens
+                self.model.generator[-1].t_lens = t_lens
                 self.model.generator[-1].eos_ind = eos
                 self.model.generator[-1].batch_max_len = batch.tgt.size(0)
 
