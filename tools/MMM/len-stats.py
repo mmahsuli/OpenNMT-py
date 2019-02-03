@@ -3,7 +3,7 @@
 import sys
 import statistics as s
 file_name=sys.argv[-1]
-max_train_tgt_len = 10
+
 print('counting...')
 f = open(file_name, 'r')
 lens=[]
