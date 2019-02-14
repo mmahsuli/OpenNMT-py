@@ -626,6 +626,53 @@ def translate_opts(parser):
               help="""Using grayscale image can training
                        model faster and smaller""")
 
+def length_model_opts(parser):
+    """ Training and saving options """
+
+    group = parser.add_argument_group('General')
+    group.add('--train_src', '-train_src', required=True,
+              help="""Path to the training source file""")
+    group.add('--train_tgt', '-train_tgt', required=True,
+              help="""Path to the training target file""")
+    group.add('--train_data_limit', '-train_data_limit',
+              type=int, default=-1,
+              help="""Data limit for training samples""")
+    group.add('--valid_src', '-valid_src', required=True,
+              help="""Path to the validation source file""")
+    group.add('--valid_tgt', '-valid_tgt', required=True,
+              help="""Path to the validation target file""")
+    group.add('--valid_data_limit', '-valid_data_limit',
+              type=int, default=-1,
+              help="""Data limit for validation samples""")
+
+    group.add('--save_model', '-save_model', default='length_model',
+              help="""Length model filename (the model will be saved as
+                       <save_model>_N.pt where N is the number
+                       of epochs""")
+    group.add('--embedding_dim', '-embedding_dim',
+              type=int, default=200,
+              help="""Embedding Dimensionality""")
+    group.add('--hidden_dim', '-hidden_dim',
+              type=int, default=200,
+              help="""Hidden Dimensionality""")
+    group.add('--epochs', '-epochs',
+              type=int, default=30,
+              help="""Train for X epochs""")
+    group.add('--save_checkpoint_epochs', '-save_checkpoint_epochs',
+              type=int, default=1,
+              help="""Save a checkpoint every X epochs""")
+    group.add('--train_from', '-train_from', default='', type=str,
+              help="""If training from a checkpoint then this is the
+                       path to the pretrained model's state_dict.""")
+    group.add('--mt_model', '-mt_model', default='', type=str,
+              help='Path to NMT model .pt file used to retrieve source vocab.')
+    group.add('--batch_size', '-batch_size', type=int, default=512,
+              help='Batch size')
+    # CPU/GPU
+    group.add('--device', '-device',
+              default="cpu", type=str,
+              help="Device to be used: cpu/cuda")
+
 
 def add_md_help_argument(parser):
     """ md help parser """
