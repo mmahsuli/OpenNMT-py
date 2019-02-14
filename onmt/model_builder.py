@@ -265,7 +265,7 @@ def build_base_model(model_opt, fields, gpu, length_model, length_penalty_a, len
                     # y[eos_list, self.eos_ind] = 0
                     for wi in range(self.batch_max_len):
                         delta_p = (self.t_lens - wi - 1).float()
-                        delta_p[delta_p < 0] = 0.005 * delta_p[delta_p < 0]
+                        delta_p[delta_p < 0] = 0.05 * delta_p[delta_p < 0]
                         scale = (self.t_lens.float()).sqrt()/2.0
                         penalties = self.length_model_loss(scale, delta_p, length_penalty_a, length_penalty_b)
                         #penalties[penalties > 0] = 0
