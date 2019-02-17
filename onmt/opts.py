@@ -500,6 +500,8 @@ def translate_opts(parser):
               type=float, help="""'a' parameter for length penalty function""")
     group.add('--length_penalty_b', '-length_penalty_b', default=1.0,
               type=float, help="""'b' parameter for length penalty function""")
+    group.add('--length_model_loc', '-length_model_loc', default='',
+              help="""Length model filename to be tested.""")
 
     group.add('--model', '-model', dest='models', metavar='MODEL',
               nargs='+', type=str, default=[], required=True,
@@ -676,9 +678,9 @@ def train_length_model_opts(parser):
 def test_length_model_opts(parser):
     """ Testing options of length model """
     group = parser.add_argument_group('General')
-    group.add('--model', '-model', required=True,
+    group.add('--length_model_loc', '-length_model_loc', required=True,
               help="""Length model filename to be tested.""")
-    group.add('--test_src', '-test_src', required=True,
+    group.add('--test_src', '-test_src', default='',
               help="""Path to the validation source file""")
     group.add('--test_tgt', '-test_tgt', default='',
               help="""Path to the validation target file""")
@@ -690,12 +692,6 @@ def test_length_model_opts(parser):
 
     group.add('--mt_model', '-mt_model', default='', type=str,
               help='Path to NMT model .pt file used to retrieve source vocab.')
-    group.add('--embedding_dim', '-embedding_dim',
-              type=int, default=200,
-              help="""Embedding Dimensionality""")
-    group.add('--hidden_dim', '-hidden_dim',
-              type=int, default=200,
-              help="""Hidden Dimensionality""")
     group.add('--batch_size', '-batch_size', type=int, default=512,
               help='Batch size')
     # CPU/GPU
