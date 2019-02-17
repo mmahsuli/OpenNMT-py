@@ -78,6 +78,23 @@ class Translator(object):
         self.length_model = opt.length_model
         self.length_penalty_a = opt.length_penalty_a
         self.length_penalty_b = opt.length_penalty_b
+        # Construct the model:
+        ##########
+        # load training data
+        device = 'cuda' if self.cuda else 'cpu'
+        length_model_loc = opt.length_model_loc
+        output_loc = opt.output
+        checkpoint = torch.load(length_model_loc)
+        length_model_opt = checkpoint['opt']
+        EMBEDDING_DIM = length_model_opt.embedding_dim
+        HIDDEN_DIM = length_model_opt.hidden_dim
+        vocab = fields['tgt'].vocab
+        # Construct the model:
+        self.l_model = onmt.utils.length_model.LSTMTagger(EMBEDDING_DIM, HIDDEN_DIM, vocab, device).to(device)
+        self.l_model.load_state_dict(checkpoint['model_state_dict'])
+
+        self.l_model.eval()
+        ##########
 
         self.n_best = opt.n_best
         self.max_length = opt.max_length
@@ -375,6 +392,8 @@ class Translator(object):
                 #sequence has <s> and </s>
                 #TODO: compute t_lens by using lstm length model
                 t_lens = []
+                ratios = onmt.utils.length_model.predict_length_ratio(self.l_model, self.device, batch.src[1], self.fields["tgt"].vocab)
+                t_lens = (ratios * batch.src[1]).tolist()
                 # # add noise to t_lens for experiments (just for test)
                 # noisy_t_lens = torch.tensor([l+randint(-2,2) for l in t_lens])
                 # if self.cuda:
