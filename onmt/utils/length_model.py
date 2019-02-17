@@ -202,10 +202,12 @@ def train(opt, vocab):
 
     # calculate total MSE loss on the test dataset before training the model
     initial_total_loss = 0
+    i = 0
     for batch_idx, (data, target) in enumerate(valid_loader):
         _, loss = eval_unpadded_loss(data, target, model, vocab, device)
         initial_total_loss += loss
-    initial_total_loss /= valid_data.__len__()
+        i += 1
+    initial_total_loss /= i
     print('Total MSE loss before training: {}'.format(initial_total_loss))
 
     for epoch in range(EPOCHS):
@@ -246,13 +248,15 @@ def train(opt, vocab):
             #     print('Collected garbage.')
         # calculate total MSE loss on the test dataset after training the model on each epoch
         total_loss = 0
+        i = 0
         for batch_idx, (data, target) in enumerate(valid_loader):
             _, loss = eval_unpadded_loss(data, target, model, vocab, device)
             total_loss += loss
-        total_loss /= valid_data.__len__()
+            i += 1
+        total_loss /= i
         print('Total MSE loss after training on epoch {}: {}'.format(epoch+1, total_loss))
         if divmod(epoch+1, save_checkpoint_epochs)[1] == 0:
-            save_mode_on_epoch_n = save_model_loc+'_step_'+repr(epoch+1)+'.pt'
+            save_mode_on_epoch_n = save_model_loc+'_epoch_'+repr(epoch+1)+'.pt'
             torch.save(model.state_dict(), save_mode_on_epoch_n)
             print('Saved the model to {0}'.format(save_mode_on_epoch_n))
 
@@ -269,7 +273,6 @@ def test(opt, vocab):
     EMBEDDING_DIM = opt.embedding_dim
     HIDDEN_DIM = opt.hidden_dim
     BATCH_SIZE = opt.batch_size
-    EPOCHS = opt.epochs
     device = opt.device
     test_data_limit = opt.test_data_limit
     model_loc = opt.model
@@ -315,10 +318,12 @@ def test(opt, vocab):
 
     output_file = open(output_loc, '+w')
     total_loss = 0
+    i = 0
     for batch_idx, (data, target) in enumerate(valid_loader):
         output, loss = eval_unpadded_loss(data, target, model, vocab, device)
-        output_file.write(output)
+        output_file.write('\n'.join(str(x) for x in output.tolist()))
         total_loss += loss
-    total_loss /= test_data.__len__()
+        i += 1
+    total_loss /= i
     print('Total MSE loss: {}'.format(total_loss))
 
