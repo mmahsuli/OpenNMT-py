@@ -11,11 +11,11 @@ if __name__ == "__main__":
         formatter_class=configargparse.ArgumentDefaultsHelpFormatter)
     opts.config_opts(parser)
     opts.add_md_help_argument(parser)
-    opts.train_length_model_opts(parser)
+    opts.test_length_model_opts(parser)
 
     opt = parser.parse_args()
 
     checkpoint = torch.load(opt.mt_model,
                             map_location=lambda storage, loc: storage)
     vocab = checkpoint['vocab'][1][1]
-    onmt.utils.length_model.train(opt, vocab)
+    onmt.utils.length_model.test(opt, vocab)

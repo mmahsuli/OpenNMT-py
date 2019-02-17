@@ -98,7 +98,7 @@ def eval_unpadded_loss(data, target, model, vocab, device):
     with torch.no_grad():
         data, target = autograd.Variable(data), autograd.Variable(target)
         output = model(data, vocab, device)
-        return  loss_function(output, target)
+        return output, loss_function(output, target)
 
 
 def train(opt, vocab):
@@ -203,7 +203,7 @@ def train(opt, vocab):
     # calculate total MSE loss on the test dataset before training the model
     initial_total_loss = 0
     for batch_idx, (data, target) in enumerate(valid_loader):
-        loss = eval_unpadded_loss(data, target, model, vocab, device)
+        _, loss = eval_unpadded_loss(data, target, model, vocab, device)
         initial_total_loss += loss
     initial_total_loss /= valid_data.__len__()
     print('Total MSE loss before training: {}'.format(initial_total_loss))
@@ -247,7 +247,7 @@ def train(opt, vocab):
         # calculate total MSE loss on the test dataset after training the model on each epoch
         total_loss = 0
         for batch_idx, (data, target) in enumerate(valid_loader):
-            loss = eval_unpadded_loss(data, target, model, vocab, device)
+            _, loss = eval_unpadded_loss(data, target, model, vocab, device)
             total_loss += loss
         total_loss /= valid_data.__len__()
         print('Total MSE loss after training on epoch {}: {}'.format(epoch+1, total_loss))
@@ -262,6 +262,63 @@ def train(opt, vocab):
 
 
 #TODO
-def test(opt):
-    pass
+def test(opt, vocab):
+    # load training data
+    test_src_loc = opt.test_src
+    test_tgt_loc = opt.test_tgt
+    EMBEDDING_DIM = opt.embedding_dim
+    HIDDEN_DIM = opt.hidden_dim
+    BATCH_SIZE = opt.batch_size
+    EPOCHS = opt.epochs
+    device = opt.device
+    test_data_limit = opt.test_data_limit
+    model_loc = opt.model
+    output_loc = opt.output
+
+    # Construct the model:
+    model = LSTMTagger(EMBEDDING_DIM, HIDDEN_DIM, vocab, device).to(device)
+
+    model.load_state_dict(torch.load(model_loc))
+    model.eval()
+
+
+    # print("Model's state_dict:")
+    # for param_tensor in model.state_dict():
+    #     print("\t", param_tensor, "\t", model.state_dict()[param_tensor].size())
+
+
+    test_data = []
+    if test_data_limit > 0:
+        print('Limited the test data to first {} samples'.format(test_data_limit))
+    else:
+        print('Using the full test dataset.')
+    print('Loading the test dataset...')
+    with open(test_src_loc, 'r') as valid_src_file, open(test_tgt_loc, 'r') as valid_tgt_file:
+        for test_src_line, test_tgt_line in zip(valid_src_file, valid_tgt_file):
+            sent, tag = (test_src_line.strip().split(), float(test_tgt_line))
+            sent = prepare_sequence(sent, vocab)
+            test_data.append((sent, tag))
+            test_data_limit -= 1
+            if test_data_limit == 0:
+                break
+    print('Successfully loaded the test dataset.')
+
+    my_collator = MyCollator(vocab)
+    # collate also does the normalization of lengths
+    valid_loader = torch.utils.data.DataLoader(
+        test_data,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=8,
+        collate_fn=my_collator
+    )
+
+    output_file = open(output_loc, '+w')
+    total_loss = 0
+    for batch_idx, (data, target) in enumerate(valid_loader):
+        output, loss = eval_unpadded_loss(data, target, model, vocab, device)
+        output_file.write(output)
+        total_loss += loss
+    total_loss /= test_data.__len__()
+    print('Total MSE loss: {}'.format(total_loss))
 

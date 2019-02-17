@@ -626,8 +626,8 @@ def translate_opts(parser):
               help="""Using grayscale image can training
                        model faster and smaller""")
 
-def length_model_opts(parser):
-    """ Training and saving options """
+def train_length_model_opts(parser):
+    """ Training and saving options of length model """
 
     group = parser.add_argument_group('General')
     group.add('--train_src', '-train_src', required=True,
@@ -673,6 +673,35 @@ def length_model_opts(parser):
               default="cpu", type=str,
               help="Device to be used: cpu/cuda")
 
+def test_length_model_opts(parser):
+    """ Testing options of length model """
+    group = parser.add_argument_group('General')
+    group.add('--model', '-model', required=True,
+              help="""Length model filename to be tested.""")
+    group.add('--test_src', '-test_src', required=True,
+              help="""Path to the validation source file""")
+    group.add('--test_tgt', '-test_tgt', default='',
+              help="""Path to the validation target file""")
+    group.add('--test_data_limit', '-test_data_limit',
+              type=int, default=-1,
+              help="""Data limit for test samples""")
+    group.add('--output', '-output', default='', type=str,
+              help='Output file location.')
+
+    group.add('--mt_model', '-mt_model', default='', type=str,
+              help='Path to NMT model .pt file used to retrieve source vocab.')
+    group.add('--embedding_dim', '-embedding_dim',
+              type=int, default=200,
+              help="""Embedding Dimensionality""")
+    group.add('--hidden_dim', '-hidden_dim',
+              type=int, default=200,
+              help="""Hidden Dimensionality""")
+    group.add('--batch_size', '-batch_size', type=int, default=512,
+              help='Batch size')
+    # CPU/GPU
+    group.add('--device', '-device',
+              default="cpu", type=str,
+              help="Device to be used: cpu/cuda")
 
 def add_md_help_argument(parser):
     """ md help parser """
