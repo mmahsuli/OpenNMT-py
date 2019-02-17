@@ -256,32 +256,39 @@ def train(opt, vocab):
         total_loss /= i
         print('Total MSE loss after training on epoch {}: {}'.format(epoch+1, total_loss))
         if divmod(epoch+1, save_checkpoint_epochs)[1] == 0:
-            save_mode_on_epoch_n = save_model_loc+'_epoch_'+repr(epoch+1)+'.pt'
-            torch.save(model.state_dict(), save_mode_on_epoch_n)
-            print('Saved the model to {0}'.format(save_mode_on_epoch_n))
+            save_model_on_epoch_n = save_model_loc+'_epoch_'+repr(epoch+1)+'.pt'
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'total_loss': total_loss,
+                'opt': opt
+            }, save_model_on_epoch_n)
+            print('Saved the model to {0}'.format(save_model_on_epoch_n))
 
     print('Training completed!')
     # show the time consumed by the program
     print("Total run time: {}".format(str(time.time()-start_time)))
 
 
-#TODO
 def test(opt, vocab):
     # load training data
     test_src_loc = opt.test_src
     test_tgt_loc = opt.test_tgt
-    EMBEDDING_DIM = opt.embedding_dim
-    HIDDEN_DIM = opt.hidden_dim
     BATCH_SIZE = opt.batch_size
     device = opt.device
     test_data_limit = opt.test_data_limit
-    model_loc = opt.model
+    model_loc = opt.length_model_loc
     output_loc = opt.output
 
+    checkpoint = torch.load(model_loc)
+    model_opt = checkpoint['opt']
+    EMBEDDING_DIM = model_opt.embedding_dim
+    HIDDEN_DIM = model_opt.hidden_dim
     # Construct the model:
     model = LSTMTagger(EMBEDDING_DIM, HIDDEN_DIM, vocab, device).to(device)
+    model.load_state_dict(checkpoint['model_state_dict'])
 
-    model.load_state_dict(torch.load(model_loc))
     model.eval()
 
 
@@ -326,4 +333,13 @@ def test(opt, vocab):
         i += 1
     total_loss /= i
     print('Total MSE loss: {}'.format(total_loss))
+
+def predict_length_ratio(model, device, batch, vocab):
+    model.eval()
+
+    batch = batch.to(device)
+    with torch.no_grad():
+        batch = autograd.Variable(batch)
+        output = model(batch, vocab, device)
+        return output.tolist()
 
