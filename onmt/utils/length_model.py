@@ -35,7 +35,7 @@ class LSTMTagger(nn.Module):
         # why they have this dimensionality.
         # The axes semantics are (num_layers, minibatch_size, hidden_dim)
         return (autograd.Variable(torch.zeros(4, batch_size, self.hidden_dim // 2)).to(device),
-                    autograd.Variable(torch.zeros(4, batch_size, self.hidden_dim // 2)).to(device))
+                autograd.Variable(torch.zeros(4, batch_size, self.hidden_dim // 2)).to(device))
 
     def forward(self, sentence, vocab, device):
         embeds = self.word_embeddings(sentence)
@@ -328,18 +328,18 @@ def test(opt, vocab):
     i = 0
     for batch_idx, (data, target) in enumerate(valid_loader):
         output, loss = eval_unpadded_loss(data, target, model, vocab, device)
-        output_file.write('\n'.join(str(x) for x in output.tolist()))
+        output_file.write('\n'.join(str(x[0]) for x in output.tolist()))
         total_loss += loss
         i += 1
     total_loss /= i
     print('Total MSE loss: {}'.format(total_loss))
 
 def predict_length_ratio(model, device, batch, vocab):
-    model.eval()
-
+    model = model.to(device)
     batch = batch.to(device)
+    model.eval()
     with torch.no_grad():
         batch = autograd.Variable(batch)
         output = model(batch, vocab, device)
-        return output.tolist()
+        return output.view(-1)
 

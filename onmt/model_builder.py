@@ -327,7 +327,7 @@ def build_base_model(model_opt, fields, gpu, length_model, length_penalty_a, len
                 # return z
 
         # MMM
-        if length_model == 'oracle':
+        if length_model == 'oracle' or length_model == 'lstm':
             generator = nn.Sequential(
                 nn.Linear(model_opt.dec_rnn_size, len(fields["tgt"].vocab)),
                 gen_func,
