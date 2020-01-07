@@ -67,9 +67,14 @@ class TransformerDecoderLayer(nn.Module):
         """
         dec_mask = None
         if step is None:
-            dec_mask = torch.gt(tgt_pad_mask +
-                                self.mask[:, :tgt_pad_mask.size(-1),
-                                          :tgt_pad_mask.size(-1)], 0)
+            future_mask = self.mask[:, :tgt_pad_mask.size(-1),
+                                          :tgt_pad_mask.size(-1)]
+            # BoolTensor was introduced in pytorch 1.2
+            try:
+                future_mask = future_mask.bool()
+            except AttributeError:
+                pass
+            dec_mask = torch.gt(tgt_pad_mask + future_mask, 0)
 
         input_norm = self.layer_norm_1(inputs)
 

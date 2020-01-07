@@ -17,5 +17,5 @@ if __name__ == "__main__":
 
     checkpoint = torch.load(opt.mt_model,
                             map_location=lambda storage, loc: storage)
-    vocab = checkpoint['vocab'][1][1]
+    vocab = checkpoint['vocab'][0][1]
     onmt.utils.length_model.test(opt, vocab)

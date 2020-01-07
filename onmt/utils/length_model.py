@@ -6,6 +6,8 @@ import torch.utils.data
 import torch.nn.utils.rnn
 import time
 
+#from sklearn.preprocessing import MinMaxScaler
+
 import configargparse
 import onmt
 import onmt.opts as opts
@@ -23,32 +25,45 @@ class LSTMTagger(nn.Module):
         self.vocab = vocab
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim // 2, bidirectional=True, num_layers=2)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim // 2, bidirectional=True, num_layers=6)
 
         # The linear layer that maps from hidden state space to the 1D score space
-        self.hidden2score1 = nn.Linear(hidden_dim, 30)
-        self.hidden2score2 = nn.Linear(30, 1)
+        self.hidden2score1 = nn.Linear(hidden_dim, 50)
+        self.hidden2score2 = nn.Linear(50, 1)
+        # self.hidden2score1 = nn.Linear(hidden_dim, 1)
 
     def init_hidden(self, batch_size, device):
         # Before we've done anything, we don't have any hidden state.
         # Refer to the Pytorch documentation to see exactly
         # why they have this dimensionality.
         # The axes semantics are (num_layers, minibatch_size, hidden_dim)
-        return (autograd.Variable(torch.zeros(4, batch_size, self.hidden_dim // 2)).to(device),
-                autograd.Variable(torch.zeros(4, batch_size, self.hidden_dim // 2)).to(device))
+
+        # return (autograd.Variable(torch.zeros(8, batch_size, self.hidden_dim // 2)).to(device),
+        #         autograd.Variable(torch.zeros(8, batch_size, self.hidden_dim // 2)).to(device))
+        return autograd.Variable(nn.init.xavier_normal_(torch.zeros(12, batch_size, self.hidden_dim // 2)).to(device)),\
+               autograd.Variable(nn.init.xavier_normal_(torch.zeros(12, batch_size, self.hidden_dim // 2)).to(device))
 
     def forward(self, sentence, vocab, device):
         embeds = self.word_embeddings(sentence)
         embeds = torch.transpose(embeds, 0, 1)
         self.hidden = self.init_hidden(len(sentence), device)
         lstm_out, self.hidden = self.lstm(embeds, self.hidden)
-        pads = (sentence == vocab.stoi['<blank>']).view(-1)
+        # pads = (sentence == vocab.stoi['<blank>']).view(-1)
+        pads = (sentence == vocab.stoi['<blank>'])
         sl, bs, _ = lstm_out.size()
-        lstm_out = lstm_out.view(-1, self.hidden_dim).clone()
-        lstm_out[pads, :] = -100000000
+        # lstm_out = lstm_out.view(-1, self.hidden_dim).clone()
+        # lstm_out[pads, :] = -100000000
+        b = []
+        outs = torch.Tensor(bs, self.hidden_dim).to(device)
+        for i in range(lstm_out.size(1)):
+            ind = (sentence[i] == vocab.stoi['<blank>']).nonzero()[0] if len((sentence[i] == vocab.stoi['<blank>']).nonzero()) != 0 else sl
+            b.append(lstm_out[:,i][:ind].mean(0))
+        outs = torch.cat(b)
+        # lstm_out[pads, :] = 0
         lstm_out = lstm_out.view(sl, bs, self.hidden_dim)
-        lstm_out = lstm_out.max(0)[0]
-        score_space = self.hidden2score1(lstm_out.view(-1, self.hidden_dim))
+        # lstm_out = lstm_out.max(0)[0]
+        lstm_out = lstm_out.sum(0)
+        score_space = self.hidden2score1(outs.view(-1, self.hidden_dim))
         score_space = self.hidden2score2(score_space)
         return torch.transpose(score_space.view(-1, len(sentence)), 0, 1)
 
@@ -86,19 +101,19 @@ def prepare_sequence(seq, vocab):
     return idxs
 
 
-def loss_function(output, target):
+def loss_function(output, target, target_scale=1):
     target = (target.view(-1))
-    output = output.contiguous().view(-1)
+    output = output.contiguous().view(-1)/target_scale
     diffs = (output - target) ** 2
     return diffs.mean()
 
 
-def eval_unpadded_loss(data, target, model, vocab, device):
+def eval_unpadded_loss(data, target, model, vocab, device, target_scale):
     data, target = data.to(device), target.to(device)
     with torch.no_grad():
         data, target = autograd.Variable(data), autograd.Variable(target)
         output = model(data, vocab, device)
-        return output, loss_function(output, target)
+        return output, loss_function(output, target, target_scale)
 
 
 def train(opt, vocab):
@@ -127,6 +142,7 @@ def train(opt, vocab):
     training_data = []
 
     target_scale = 1
+    #scaler = MinMaxScaler(feature_range=(0, 1))
 
     # word_to_ix = {}
     # word_to_ix['PAD'] = 0
@@ -151,6 +167,11 @@ def train(opt, vocab):
             train_data_limit -= 1
             if train_data_limit == 0:
                 break
+    # x_max = max([v for (k,v) in training_data])
+    # x_min = min([v for (k,v) in training_data])
+    # scaled_training_data = []
+    # for item in training_data:
+    #     scaled_training_data.append(item[0], item[1]/(x_max - x_min))
     print('Successfully loaded the training dataset.')
     print("EMBEDDING_DIM = {}\nHIDDEN_DIM = {}\nBATCH_SIZE = {}\nEPOCHS = {}"
           .format(EMBEDDING_DIM, HIDDEN_DIM, BATCH_SIZE, EPOCHS))
@@ -163,7 +184,7 @@ def train(opt, vocab):
         print('Resuming the model from {0}'.format(train_from))
         model.train()
 
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=1.0e-6)
 
     print("Model's state_dict:")
     for param_tensor in model.state_dict():
@@ -188,6 +209,7 @@ def train(opt, vocab):
             valid_data_limit -= 1
             if valid_data_limit == 0:
                 break
+    #valid_data = scaler.transform(valid_data)
     print('Successfully loaded the validation dataset.')
 
     my_collator = MyCollator(vocab)
@@ -204,7 +226,7 @@ def train(opt, vocab):
     initial_total_loss = 0
     i = 0
     for batch_idx, (data, target) in enumerate(valid_loader):
-        _, loss = eval_unpadded_loss(data, target, model, vocab, device)
+        _, loss = eval_unpadded_loss(data, target, model, vocab, device, target_scale)
         initial_total_loss += loss
         i += 1
     initial_total_loss /= i
@@ -240,7 +262,7 @@ def train(opt, vocab):
 
             # Run our forward pass.
             output = model(data, vocab, device)
-            loss = loss_function(output, target)
+            loss = loss_function(output, target, target_scale)
             loss.backward()
             optimizer.step()
             # if divmod(batch_idx, 100)[1] == 0:
@@ -250,7 +272,7 @@ def train(opt, vocab):
         total_loss = 0
         i = 0
         for batch_idx, (data, target) in enumerate(valid_loader):
-            _, loss = eval_unpadded_loss(data, target, model, vocab, device)
+            _, loss = eval_unpadded_loss(data, target, model, vocab, device, target_scale)
             total_loss += loss
             i += 1
         total_loss /= i
@@ -272,6 +294,7 @@ def train(opt, vocab):
 
 
 def test(opt, vocab):
+    target_scale = 1
     # load training data
     test_src_loc = opt.test_src
     test_tgt_loc = opt.test_tgt
@@ -327,12 +350,14 @@ def test(opt, vocab):
     total_loss = 0
     i = 0
     for batch_idx, (data, target) in enumerate(valid_loader):
-        output, loss = eval_unpadded_loss(data, target, model, vocab, device)
+        output, loss = eval_unpadded_loss(data, target, model, vocab, device, target_scale)
         output_file.write('\n'.join(str(x[0]) for x in output.tolist()))
+        output_file.write('\n')
         total_loss += loss
         i += 1
     total_loss /= i
     print('Total MSE loss: {}'.format(total_loss))
+
 
 def predict_length_ratio(model, device, batch, vocab):
     model = model.to(device)

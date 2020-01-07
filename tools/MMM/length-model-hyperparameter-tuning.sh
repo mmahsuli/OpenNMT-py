@@ -20,17 +20,17 @@
 # test_multi_ref [true | false]: wheather or not test using multi-reference		#
 #########################################################################################
 
-model_dir='model'
-model='iwslt-baseline-40_step_100000.pt'
+model_dir='model/iwslt-deen-30'
+model='transformer-iwslt-30_step_24000.pt'
 openNMT_py_dir='../../'
-src='data/iwslt14.tokenized.de-en/test-40.short.de'
-tgt='data/iwslt14.tokenized.de-en/test-40.short.en'
+src='data/iwslt14.tokenized.de-en/valid-30.de'
+tgt='data/iwslt14.tokenized.de-en/valid-30.en'
 multiref_tgt='data/verbmobil-enfa/ref'
 
-file_suffix='-oracle'
-translation_extra_params='-length_model oracle'
+file_suffix='-lstm'
+translation_extra_params='-length_model lstm -length_model_loc length_model_iwslt-30_ratio_epoch_13.pt'
 
-exp_dir='experiments/hyperparameter-tuning'
+exp_dir='experiments/hyperparameter-tuning/iwslt-30'
 test_single_ref=true
 test_multi_ref=false
 
@@ -57,8 +57,8 @@ if [ $test_multi_ref = true ] ; then
     echo 'a\tb\tBLEU\tdetails' >> $exp_dir/${model}${file_suffix}-multi-bleu-stats.txt
 fi
 
-a_end=20
-b_end=5
+a_end=40
+b_end=3
 for a in $(seq 1 $a_end); do
     for b in $(seq 1 $b_end); do
         trans_file=${model}${file_suffix}_a${a}_b${b}

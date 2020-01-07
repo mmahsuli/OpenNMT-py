@@ -387,10 +387,16 @@ class Translator(object):
                 pad = self.fields["tgt"].vocab.stoi[inputters.PAD_WORD]
                 eos = self.fields["tgt"].vocab.stoi[inputters.EOS_WORD]
                 #sequence has <s> and </s>
-                #TODO: compute t_lens by using lstm length model
+                #TODO: the code itself must handle ratio and diff lstm length models
                 t_lens = []
                 ratios = onmt.utils.length_model.predict_length_ratio(self.l_model, self.device, batch.src[0].transpose(0, 1), self.fields["src"].vocab)
-                t_lens = ratios * batch.src[1].type(torch.FloatTensor).to(self.device)
+                # diffs = torch.round(onmt.utils.length_model.predict_length_ratio(self.l_model, self.device,
+                #                                                       batch.src[0].transpose(0, 1),
+                #                                                       self.fields["src"].vocab))
+                # target sequence has <s> and </s>, but source sequence doesn't have them
+                t_lens = ratios * batch.src[1].type(torch.FloatTensor).to(self.device) + 2
+                # t_lens = torch.max((diffs + batch.src[1].type(torch.FloatTensor).to(self.device)), torch.zeros(batch.tgt.size(1)).to(self.device)) + 2
+
                 # # add noise to t_lens for experiments (just for test)
                 # noisy_t_lens = torch.tensor([l+randint(-2,2) for l in t_lens])
                 # if self.cuda:
@@ -693,7 +699,7 @@ class Translator(object):
             if all((b.done() for b in beam)):
                 break
             # MMM
-            if self.length_model == 'oracle' or self.length_model == 'lstm':
+            if self.length_model == 'oracle' or self.length_model == 'fixed_ratio' or self.length_model == 'lstm':
                 self.model.generator[-1].word_index = i
             # (a) Construct batch x beam_size nxt words.
             # Get all the pending current beam words and arrange for forward.
